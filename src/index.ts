@@ -7,7 +7,7 @@ import { Arbitrage } from "./Arbitrage";
 import { get } from "https"
 import { getDefaultRelaySigningKey } from "./utils";
 
-const ETHEREUM_RPC_URL = process.env.ETHEREUM_RPC_URL || "http://127.0.0.1:8545"
+const ETHEREUM_RPC_URL = process.env.ETHEREUM_RPC_URL || ""
 const PRIVATE_KEY = process.env.PRIVATE_KEY || ""
 const BUNDLE_EXECUTOR_ADDRESS = process.env.BUNDLE_EXECUTOR_ADDRESS || ""
 
@@ -15,10 +15,16 @@ const FLASHBOTS_RELAY_SIGNING_KEY = process.env.FLASHBOTS_RELAY_SIGNING_KEY || g
 
 const MINER_REWARD_PERCENTAGE = parseInt(process.env.MINER_REWARD_PERCENTAGE || "80")
 
+if (ETHEREUM_RPC_URL == "") {
+  console.warn("Must provide Ethereum Rpc Url")
+  process.exit(1)
+}
+
 if (PRIVATE_KEY === "") {
   console.warn("Must provide PRIVATE_KEY environment variable")
   process.exit(1)
 }
+
 if (BUNDLE_EXECUTOR_ADDRESS === "") {
   console.warn("Must provide BUNDLE_EXECUTOR_ADDRESS environment variable. Please see README.md")
   process.exit(1)
@@ -50,12 +56,14 @@ async function main() {
   const arbitrage = new Arbitrage(
     arbitrageSigningWallet,
     flashbotsProvider,
-    new Contract(BUNDLE_EXECUTOR_ADDRESS, BUNDLE_EXECUTOR_ABI, provider) )
+    new Contract(BUNDLE_EXECUTOR_ADDRESS, BUNDLE_EXECUTOR_ABI, provider))
 
   const markets = await UniswappyV2EthPair.getUniswapMarketsByToken(provider, FACTORY_ADDRESSES);
+  console.log("markets---", markets)
   provider.on('block', async (blockNumber) => {
     await UniswappyV2EthPair.updateReserves(provider, markets.allMarketPairs);
     const bestCrossedMarkets = await arbitrage.evaluateMarkets(markets.marketsByToken);
+    console.log("---bestCrossedMarkets---", bestCrossedMarkets)
     if (bestCrossedMarkets.length === 0) {
       console.log("No crossed markets")
       return

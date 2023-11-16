@@ -163,7 +163,7 @@ export class Arbitrage {
       ];
       console.log(bundledTransactions)
       const signedBundle = await this.flashbotsProvider.signBundle(bundledTransactions)
-      //
+
       const simulation = await this.flashbotsProvider.simulate(signedBundle, blockNumber + 1 )
       if ("error" in simulation || simulation.firstRevert !== undefined) {
         console.log(`Simulation Error on token ${bestCrossedMarket.tokenAddress}, skipping`)
