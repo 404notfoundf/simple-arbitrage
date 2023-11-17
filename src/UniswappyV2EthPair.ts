@@ -47,7 +47,6 @@ export class UniswappyV2EthPair extends EthMarket {
 
   static async getUniswappyMarkets(provider: providers.JsonRpcProvider, factoryAddress: string): Promise<Array<UniswappyV2EthPair>> {
     const uniswapQuery = new Contract(UNISWAP_LOOKUP_CONTRACT_ADDRESS, UNISWAP_QUERY_ABI, provider);
-    console.log("uniswapQuery---", uniswapQuery)
     const marketPairs = new Array<UniswappyV2EthPair>()
     for (let i = 0; i < BATCH_COUNT_LIMIT * UNISWAP_BATCH_SIZE; i += UNISWAP_BATCH_SIZE) {
       const pairs: Array<Array<string>> = (await uniswapQuery.functions.getPairsByIndexRange(factoryAddress, i, i + UNISWAP_BATCH_SIZE))[0];
@@ -77,7 +76,6 @@ export class UniswappyV2EthPair extends EthMarket {
   }
 
   static async getUniswapMarketsByToken(provider: providers.JsonRpcProvider, factoryAddresses: Array<string>): Promise<GroupedMarkets> {
-    console.log("11222233")
     const allPairs = await Promise.all(
       _.map(factoryAddresses, factoryAddress => UniswappyV2EthPair.getUniswappyMarkets(provider, factoryAddress))
     )
@@ -87,8 +85,9 @@ export class UniswappyV2EthPair extends EthMarket {
       .groupBy(pair => pair.tokens[0] === WETH_ADDRESS ? pair.tokens[1] : pair.tokens[0])
       .value()
 
+    // TODO 修改 a.length > ? , ? 的长度
     const allMarketPairs = _.chain(
-      _.pickBy(marketsByTokenAll, a => a.length > 1) // weird TS bug, chain'd pickBy is Partial<>
+      _.pickBy(marketsByTokenAll, a => a.length > 0) // weird TS bug, chain'd pickBy is Partial<>
     )
       .values()
       .flatten()
@@ -100,7 +99,6 @@ export class UniswappyV2EthPair extends EthMarket {
       .filter(pair => (pair.getBalance(WETH_ADDRESS).gt(ETHER)))
       .groupBy(pair => pair.tokens[0] === WETH_ADDRESS ? pair.tokens[1] : pair.tokens[0])
       .value()
-
     return {
       marketsByToken,
       allMarketPairs

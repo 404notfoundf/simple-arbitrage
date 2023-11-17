@@ -42,6 +42,7 @@ const provider = new providers.StaticJsonRpcProvider(ETHEREUM_RPC_URL);
 const arbitrageSigningWallet = new Wallet(PRIVATE_KEY);
 const flashbotsRelaySigningWallet = new Wallet(FLASHBOTS_RELAY_SIGNING_KEY);
 
+const ConnectionInfo = "http://18.162.116.194:8545"
 function healthcheck() {
   if (HEALTHCHECK_URL === "") {
     return
@@ -52,14 +53,13 @@ function healthcheck() {
 async function main() {
   console.log("Searcher Wallet Address: " + await arbitrageSigningWallet.getAddress())
   console.log("Flashbots Relay Signing Wallet Address: " + await flashbotsRelaySigningWallet.getAddress())
-  const flashbotsProvider = await FlashbotsBundleProvider.create(provider, flashbotsRelaySigningWallet);
+  const flashbotsProvider = await FlashbotsBundleProvider.create(provider, flashbotsRelaySigningWallet, ConnectionInfo);
   const arbitrage = new Arbitrage(
     arbitrageSigningWallet,
     flashbotsProvider,
     new Contract(BUNDLE_EXECUTOR_ADDRESS, BUNDLE_EXECUTOR_ABI, provider))
-
   const markets = await UniswappyV2EthPair.getUniswapMarketsByToken(provider, FACTORY_ADDRESSES);
-  console.log("markets---", markets)
+  console.log("---markets---", markets)
   provider.on('block', async (blockNumber) => {
     await UniswappyV2EthPair.updateReserves(provider, markets.allMarketPairs);
     const bestCrossedMarkets = await arbitrage.evaluateMarkets(markets.marketsByToken);

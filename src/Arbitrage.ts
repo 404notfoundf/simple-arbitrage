@@ -97,13 +97,16 @@ export class Arbitrage {
     for (const tokenAddress in marketsByToken) {
       const markets = marketsByToken[tokenAddress]
       const pricedMarkets = _.map(markets, (ethMarket: EthMarket) => {
+        console.log("ethMarket---", ethMarket)
+        console.log("ethMarket buyTokenPrice---", ethMarket.getTokensIn(tokenAddress, WETH_ADDRESS, ETHER.div(10000)).toString())
+        console.log("ethMarket sellTokenPrice---", ethMarket.getTokensOut(WETH_ADDRESS, tokenAddress, ETHER.div(10000)).toString())
         return {
           ethMarket: ethMarket,
-          buyTokenPrice: ethMarket.getTokensIn(tokenAddress, WETH_ADDRESS, ETHER.div(100)),
-          sellTokenPrice: ethMarket.getTokensOut(WETH_ADDRESS, tokenAddress, ETHER.div(100)),
+          buyTokenPrice: ethMarket.getTokensIn(tokenAddress, WETH_ADDRESS, ETHER.div(10000)),
+          sellTokenPrice: ethMarket.getTokensOut(WETH_ADDRESS, tokenAddress, ETHER.div(10000)),
         }
       });
-
+      console.log("----marketsByToken----", marketsByToken)
       const crossedMarkets = new Array<Array<EthMarket>>()
       for (const pricedMarket of pricedMarkets) {
         _.forEach(pricedMarkets, pm => {
@@ -112,9 +115,10 @@ export class Arbitrage {
           }
         })
       }
-
+      console.log("-----crossedMarkets---", crossedMarkets)
       const bestCrossedMarket = getBestCrossedMarket(crossedMarkets, tokenAddress);
-      if (bestCrossedMarket !== undefined && bestCrossedMarket.profit.gt(ETHER.div(1000))) {
+      console.log("----bestCrossedMarket----", bestCrossedMarket)
+      if (bestCrossedMarket !== undefined && bestCrossedMarket.profit.gt(ETHER.div(100000))) {
         bestCrossedMarkets.push(bestCrossedMarket)
       }
     }
@@ -125,22 +129,20 @@ export class Arbitrage {
   // TODO: take more than 1
   async takeCrossedMarkets(bestCrossedMarkets: CrossedMarketDetails[], blockNumber: number, minerRewardPercentage: number): Promise<void> {
     for (const bestCrossedMarket of bestCrossedMarkets) {
-
       console.log("Send this much WETH", bestCrossedMarket.volume.toString(), "get this much profit", bestCrossedMarket.profit.toString())
       const buyCalls = await bestCrossedMarket.buyFromMarket.sellTokensToNextMarket(WETH_ADDRESS, bestCrossedMarket.volume, bestCrossedMarket.sellToMarket);
       const inter = bestCrossedMarket.buyFromMarket.getTokensOut(WETH_ADDRESS, bestCrossedMarket.tokenAddress, bestCrossedMarket.volume)
       const sellCallData = await bestCrossedMarket.sellToMarket.sellTokens(bestCrossedMarket.tokenAddress, inter, this.bundleExecutorContract.address);
-
       const targets: Array<string> = [...buyCalls.targets, bestCrossedMarket.sellToMarket.marketAddress]
       const payloads: Array<string> = [...buyCalls.data, sellCallData]
       console.log({targets, payloads})
       const minerReward = bestCrossedMarket.profit.mul(minerRewardPercentage).div(100);
       const transaction = await this.bundleExecutorContract.populateTransaction.uniswapWeth(bestCrossedMarket.volume, minerReward, targets, payloads, {
-        gasPrice: BigNumber.from(0),
-        gasLimit: BigNumber.from(1000000),
+        //gasPrice: BigNumber.from(0),
+        gasLimit: BigNumber.from(2500000),
       });
-
       try {
+        // console.log("--- bundleExecutorContract provider ---, ", this.bundleExecutorContract)
         const estimateGas = await this.bundleExecutorContract.provider.estimateGas(
           {
             ...transaction,
@@ -151,6 +153,10 @@ export class Arbitrage {
           continue
         }
         transaction.gasLimit = estimateGas.mul(2)
+        transaction.type = 2
+        // TODO maxFeePerGas(*暂时任意添加)
+        transaction.maxFeePerGas = BigNumber.from(100)
+        transaction.chainId = 32382
       } catch (e) {
         console.warn(`Estimate gas failure for ${JSON.stringify(bestCrossedMarket)}`)
         continue
@@ -161,20 +167,25 @@ export class Arbitrage {
           transaction: transaction
         }
       ];
+      console.log("====222233333====")
       console.log(bundledTransactions)
       const signedBundle = await this.flashbotsProvider.signBundle(bundledTransactions)
-
+      console.log("---signBundle---", signedBundle)
       const simulation = await this.flashbotsProvider.simulate(signedBundle, blockNumber + 1 )
       if ("error" in simulation || simulation.firstRevert !== undefined) {
+        console.log("simulate error==", simulation)
         console.log(`Simulation Error on token ${bestCrossedMarket.tokenAddress}, skipping`)
         continue
       }
+
       console.log(`Submitting bundle, profit sent to miner: ${bigNumberToDecimal(simulation.coinbaseDiff)}, effective gas price: ${bigNumberToDecimal(simulation.coinbaseDiff.div(simulation.totalGasUsed), 9)} GWEI`)
       const bundlePromises =  _.map([blockNumber + 1, blockNumber + 2], targetBlockNumber =>
         this.flashbotsProvider.sendRawBundle(
           signedBundle,
           targetBlockNumber
         ))
+      console.log("-----sendRawBundle-----")
+      console.log("---Date Time---", new Date().toString())
       await Promise.all(bundlePromises)
       return
     }
