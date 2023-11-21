@@ -138,7 +138,6 @@ export class Arbitrage {
       console.log({targets, payloads})
       const minerReward = bestCrossedMarket.profit.mul(minerRewardPercentage).div(100);
       const transaction = await this.bundleExecutorContract.populateTransaction.uniswapWeth(bestCrossedMarket.volume, minerReward, targets, payloads, {
-        //gasPrice: BigNumber.from(0),
         gasLimit: BigNumber.from(2500000),
       });
       try {
@@ -156,6 +155,7 @@ export class Arbitrage {
         transaction.type = 2
         // TODO maxFeePerGas(*暂时任意添加)
         transaction.maxFeePerGas = BigNumber.from(100)
+        // transaction.maxPriorityFeePerGas = BigNumber.from(100)
         transaction.chainId = 32382
       } catch (e) {
         console.warn(`Estimate gas failure for ${JSON.stringify(bestCrossedMarket)}`)
@@ -167,13 +167,11 @@ export class Arbitrage {
           transaction: transaction
         }
       ];
-      console.log("====222233333====")
-      console.log(bundledTransactions)
+      console.log("bundleTransaction, ", bundledTransactions)
       const signedBundle = await this.flashbotsProvider.signBundle(bundledTransactions)
-      console.log("---signBundle---", signedBundle)
       const simulation = await this.flashbotsProvider.simulate(signedBundle, blockNumber + 1 )
       if ("error" in simulation || simulation.firstRevert !== undefined) {
-        console.log("simulate error==", simulation)
+        console.log("==simulate error==", simulation)
         console.log(`Simulation Error on token ${bestCrossedMarket.tokenAddress}, skipping`)
         continue
       }
@@ -184,8 +182,7 @@ export class Arbitrage {
           signedBundle,
           targetBlockNumber
         ))
-      console.log("-----sendRawBundle-----")
-      console.log("---Date Time---", new Date().toString())
+      console.log("----SendRawBundle Date Time----", new Date().toString())
       await Promise.all(bundlePromises)
       return
     }
